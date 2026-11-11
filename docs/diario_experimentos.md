@@ -54,6 +54,9 @@ estragavam a média.
   3 → 0,3315. Entre 0 e 2 tanto faz no geral; ficamos com 2 porque protege as
   matrizes sem estrutura (1,117 contra 1,149), que são as que mais pesam na média.
 - Trava com 2 erros típicos em vez de 3: igual.
+- Repetir a validação cruzada 2 ou 3 vezes com sorteios diferentes nas matrizes
+  pequenas: 0,303 a 0,306 no sintético e 0,270 no público. Diferença dentro do
+  ruído, não compensou deixar o código maior.
 
 ## Comparação com um "oráculo"
 

@@ -2,7 +2,7 @@ import numpy as np
 
 CFG = dict(K=10, reps=1, its0=12, its=5, iters_final=4, rmax=10, modos=(0, 1, 2), bag='final',
            caminho=(0.3, 0.1, 0.03, 0.01, 0.001, 0.0001), lam_ef=(0.0, 0.3, 1.0, 3.0),
-           guarda=3.0, dof=0.9, clip=0.25, debug=False, Kad=(500, 900, 99999), mg=99999, tmin=2.0, paciencia=3, pond=True)
+           guarda=3.0, dof=0.9, clip=0.25, debug=False, Kad=(500, 800, 1100), mg=700, repmax=99999, tmin=2.0, paciencia=3, pond=True)
 INFO = {}
 
 
@@ -77,7 +77,7 @@ def principal(observada, mascara, cfg=None):
     cc0 = M.sum(axis=0, keepdims=True)
     livre = M & (cl0 > 1) & (cc0 > 1)
     Hs = []
-    for rep in range(c['reps']):
+    for rep in range(c['reps'] if nk <= c['repmax'] else 1):
         h = np.sin(I * 12.9898 + J * 78.233 + rep * 37.719 + 1.0) * 43758.5453
         h = h - np.floor(h)
         chave = np.where(livre, (I if rep % 2 == 0 else J) + h, 1e9)
