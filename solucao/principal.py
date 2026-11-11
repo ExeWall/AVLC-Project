@@ -124,7 +124,8 @@ def principal(observada, mascara):
         #    em exatamente uma dobra. O sorteio é feito por uma fórmula fixa
         #    (sem números aleatórios), então o resultado é sempre o mesmo.
         # --------------------------------------------------------------
-        K = 10 if nk <= 500 else (8 if nk <= 900 else 6)
+        # (matrizes maiores usam menos dobras para caber com folga no tempo)
+        K = 10 if nk <= 500 else (8 if nk <= 800 else (6 if nk <= 1100 else 5))
         I = np.arange(m)[:, None] * np.ones((1, n))
         J = np.ones((m, 1)) * np.arange(n)[None, :]
         cont_l = M.sum(axis=1, keepdims=True)
@@ -169,7 +170,8 @@ def principal(observada, mascara):
         #    regularização, da mais forte para a mais fraca, aproveitando a
         #    solução anterior como ponto de partida.
         # --------------------------------------------------------------
-        modos = (0, 1, 2)
+        modos = (0, 1, 2) if nk <= 700 else (1, 2)    # matriz grande: 2 versões bastam
+        nm = len(modos)
         caminho = (0.3, 0.1, 0.03, 0.01, 0.001, 0.0001)
         WTm = np.concatenate([alvo(q, Zb, Pef, W) for q in modos], axis=0)
         Wm = np.concatenate([W for q in modos], axis=0)
@@ -191,13 +193,13 @@ def principal(observada, mascara):
                 break
             V = iniciar(WTm, r)
             P_ant = basem
-            taus = [[], [], []]
+            taus = [[] for q in modos]
             melhorou = False
             for nivel in range(len(caminho)):
                 U, V = als(WTm, Wm, V, caminho[nivel], 12 if nivel == 0 else 5)
                 P = np.clip(basem + U @ np.swapaxes(V, 1, 2), zmin, zmax)
                 partes = []
-                for q in range(3):
+                for q in range(nm):
                     Pq = P[q * K:(q + 1) * K]
                     if nivel > 0:
                         # trava: no máximo 3 "erros típicos" de distância do

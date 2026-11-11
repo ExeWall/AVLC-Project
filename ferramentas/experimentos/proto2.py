@@ -2,7 +2,7 @@ import numpy as np
 
 CFG = dict(K=10, reps=1, its0=12, its=5, iters_final=4, rmax=10, modos=(0, 1, 2), bag='final',
            caminho=(0.3, 0.1, 0.03, 0.01, 0.001, 0.0001), lam_ef=(0.0, 0.3, 1.0, 3.0),
-           guarda=3.0, dof=0.9, clip=0.25, debug=False, Kad=None, tmin=2.0, paciencia=3, pond=True)
+           guarda=3.0, dof=0.9, clip=0.25, debug=False, Kad=(500, 900, 99999), mg=99999, tmin=2.0, paciencia=3, pond=True)
 INFO = {}
 
 
@@ -70,7 +70,7 @@ def principal(observada, mascara, cfg=None):
     # ---------- dobras ----------
     K = c['K']
     if c['Kad']:
-        K = 10 if nk <= c['Kad'][0] else (8 if nk <= c['Kad'][1] else 6)
+        K = 10 if nk <= c['Kad'][0] else (8 if nk <= c['Kad'][1] else (6 if nk <= c['Kad'][2] else 5))
     I = np.arange(m)[:, None] * np.ones((1, n))
     J = np.ones((m, 1)) * np.arange(n)[None, :]
     cl0 = M.sum(axis=1, keepdims=True)
@@ -108,7 +108,7 @@ def principal(observada, mascara, cfg=None):
     a, b = efeitos(Z[None], Mf[None], lam_ef, 30)
     Fef = (a + b)[0]
 
-    modos = c['modos']
+    modos = c['modos'] if nk <= c['mg'] else (1, 2)
     nm = len(modos)
     cam = c['caminho']
 
