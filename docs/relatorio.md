@@ -1,6 +1,6 @@
 # Relatório – Torneio de Álgebra Linear (CIN0138)
 
-**Equipe:** Grupo N — *(preencher os nomes dos integrantes)*
+**Equipe:** Grupo N — *(preencher os nomes dos integrantes)*  
 **Arquivo entregue:** `principal.py`, com a função `principal(observada, mascara)`
 
 ## 1. O problema
