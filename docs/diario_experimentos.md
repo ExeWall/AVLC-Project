@@ -15,6 +15,7 @@ geramos (`ferramentas/gerar_sinteticas.py`), sem contar os casos de borda.
 | 6 | Três versões da matriz (centralizada, resíduo dos efeitos, crua) | 0,268 | 0,306 | ajuda nas matrizes com valores deslocados |
 | 7 | Menos iterações + parar quando o posto só piora | 0,268 | 0,306 | mesmo erro, 3,6x mais rápido |
 | 8 | Número de dobras conforme o tamanho | 0,268 | 0,306 | pior caso 40x40: de 0,75 s para 0,27 s |
+| 9 | Posto máximo de 10 para 12 | 0,268 | 0,306 | matrizes grandes de posto 10: 0,30 → 0,19; pior tempo ~0,4 s |
 
 ## O que aprendemos em cada etapa
 
@@ -54,6 +55,10 @@ estragavam a média.
   3 → 0,3315. Entre 0 e 2 tanto faz no geral; ficamos com 2 porque protege as
   matrizes sem estrutura (1,117 contra 1,149), que são as que mais pesam na média.
 - Trava com 2 erros típicos em vez de 3: igual.
+- Dar mais peso, na validação, às linhas e colunas com poucas conhecidas (onde
+  os erros se concentram): 0,311 a 0,343. Piorou, a validação fica mais ruidosa.
+- Preferir o posto menor ou o λ maior quando o erro da validação é quase igual:
+  0,307 a 0,313. Não ajudou; ficar com o menor erro é melhor.
 - Repetir a validação cruzada 2 ou 3 vezes com sorteios diferentes nas matrizes
   pequenas: 0,303 a 0,306 no sintético e 0,270 no público. Diferença dentro do
   ruído, não compensou deixar o código maior.
@@ -71,6 +76,12 @@ As matrizes 1 e 8 respondem por 2,24 dos 2,68 pontos de erro somados no banco
 público. Nelas nenhuma estratégia fica abaixo de 1: os valores ocultos não têm
 relação aproveitável com os conhecidos. O melhor que se pode fazer é não piorar,
 e por isso o algoritmo recua para a média quando a validação não mostra ganho.
+
+## Outras verificações
+
+- As posições ocultas das matrizes públicas não têm viés (a média das ocultas
+  não é sistematicamente maior nem menor que a das conhecidas), então não há o
+  que corrigir nesse sentido.
 
 ## Restrições do ambiente que cuidamos
 - Máscara chega como inteiros 0/1 (não booleana) e as ocultas chegam como NaN.
