@@ -1,6 +1,6 @@
 import sys, json
 from rodar import *
-MOD = 'proto2'
+MOD = sys.argv.pop(1)
 cs = gerar_sinteticas.gerar_todas()
 for arg in sys.argv[1:]:
     cfg = json.loads(arg)

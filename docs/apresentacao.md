@@ -1,5 +1,7 @@
 # Roteiro da apresentação (Etapa 2) – 10 minutos + 5 de perguntas
 
+**Equipe 9:** Wallyson Rodrigues da Silva, Guilherme Duque e Bruno Antônio
+
 > Combinar antes quem fala cada parte. **Todos** precisam saber responder às
 > perguntas do final deste arquivo, porque a monitoria pergunta a cada integrante.
 
@@ -7,16 +9,16 @@
 
 | Tempo | Parte | Quem | O que mostrar |
 |---|---|---|---|
-| 0:00–1:00 | Problema e métrica | Integrante A | matriz com buracos; NRMSE = 1 é "chutar a média" |
-| 1:00–2:30 | Por onde começamos | Integrante A | médias e efeitos de linha/coluna; erro 0,594 no banco público |
-| 2:30–5:00 | Ideia de posto baixo e ALS | Integrante B | valores singulares das públicas; `X ≈ U Vᵀ`; equações normais |
-| 5:00–7:00 | Validação cruzada, trava e mistura | Integrante C | por que o posto certo importa (matriz 9: posto 4 → 0,004; posto 5 → 0,43) |
-| 7:00–8:30 | Demonstração | Integrante C | rodar o avaliador e mostrar a tabela |
+| 0:00–1:00 | Problema e métrica | Wallyson | matriz com buracos; NRMSE = 1 é "chutar a média" |
+| 1:00–2:30 | Por onde começamos | Wallyson | médias e efeitos de linha/coluna; erro 0,594 no banco público |
+| 2:30–5:00 | Ideia de posto baixo e ALS | Guilherme | valores singulares das públicas; `X ≈ U Vᵀ`; equações normais |
+| 5:00–7:00 | Validação cruzada, trava e mistura | Bruno | por que o posto certo importa (matriz 9: posto 4 → 0,004; posto 5 → 0,43) |
+| 7:00–8:30 | Demonstração | Bruno | rodar o avaliador e mostrar a tabela |
 | 8:30–10:00 | Resultados e o que aprendemos | todos | tabela por matriz; matrizes 1 e 8; limitações |
 
 ## Slides sugeridos
 
-1. **Título** – nome da equipe, integrantes.
+1. **Título** – Equipe 9: Wallyson, Guilherme e Bruno.
 2. **O problema** – exemplo 4x4 de posto 1 do site (cada linha é múltipla da primeira; as conhecidas determinam as ocultas).
 3. **Primeira tentativa** – média global, da linha, da coluna, efeitos. Onde funcionam (matrizes 2 e 3) e onde falham (6 e 7: erro ≈ 1).
 4. **O que os dados mostram** – gráfico dos valores singulares de uma matriz pública (ex.: a 9 tem 4 valores grandes e o resto zero). Conclusão: posto baixo.
@@ -198,7 +200,7 @@ ou a média (`try/except`).
 **27. Qual o custo computacional?**
 Cada passo do ALS monta e resolve `m + n` sistemas `r × r`: custo da ordem de
 `m·n·r² + (m+n)·r³`. Multiplica pelo número de passos, de postos testados e de
-grupos da validação. Para 40x40 leva cerca de 0,3 s (limite de 2 s).
+grupos da validação. Para 40x40 leva no máximo cerca de 0,4 s (limite de 2 s).
 
 **28. Por que o código não tem laços percorrendo entrada por entrada?**
 Operações vetorizadas do NumPy são muito mais rápidas, e os `K` ajustes da

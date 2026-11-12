@@ -4,6 +4,8 @@ Projeto da disciplina de Álgebra Linear (CIN0138): torneio de reconstrução de
 matrizes. A função `principal(observada, mascara)` recebe uma matriz com entradas
 ocultas e devolve a matriz completa.
 
+**Equipe 9:** Wallyson Rodrigues da Silva, Guilherme Duque e Bruno Antônio
+
 ## Organização
 
 | Pasta | Conteúdo |
@@ -13,7 +15,7 @@ ocultas e devolve a matriz completa.
 | `ferramentas/` | avaliador local, estratégias simples, gerador de matrizes de teste, verificador das restrições, testes de estresse |
 | `ferramentas/experimentos/` | protótipos e scripts usados durante o desenvolvimento |
 | `docs/` | relatório, roteiro da apresentação e diário de experimentos |
-| `entrega/` | zip no formato pedido (`GrupoN.zip`) |
+| `entrega/` | zip no formato pedido (`Grupo9.zip`) |
 
 ## Como rodar
 
@@ -33,8 +35,8 @@ python ferramentas/checar_restricoes.py solucao/principal.py
 # tempo no pior caso, tipos de entrada e casos de borda
 python ferramentas/testes_estresse.py solucao/principal.py
 
-# monta o zip da entrega (troque 7 pelo número da equipe)
-python ferramentas/montar_entrega.py 7
+# monta o zip da entrega
+python ferramentas/montar_entrega.py 9
 ```
 
 Avaliador oficial: dentro de `pacote_equipe`, `docker compose up -d`, abrir
