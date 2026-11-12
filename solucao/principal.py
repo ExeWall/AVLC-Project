@@ -131,7 +131,7 @@ def principal(observada, mascara):
         Wm = np.concatenate([W for q in modos], axis=0)
         basem = np.concatenate([base(q, Pef) for q in modos], axis=0)
         n_treino = W.sum() / K
-        r_max = int(min(10, min(m, n) - 1))
+        r_max = int(min(12, min(m, n) - 1))
         achou = False
         melhor_erro = 0.0
         melhor_P = Pef
