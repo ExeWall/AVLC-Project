@@ -3,252 +3,148 @@ h1{font-size:17pt;margin:0 0 6pt} h2{font-size:12.5pt;margin:12pt 0 4pt;border-b
 p{margin:4pt 0;text-align:justify} pre{background:#f3f3f3;padding:5pt 8pt;font-size:9.5pt;margin:4pt 0}
 code{font-family:Consolas,monospace;font-size:9.5pt}
 table{border-collapse:collapse;margin:6pt auto;font-size:9pt} td,th{border:1px solid #888;padding:2pt 6pt;text-align:center}
-ul{margin:3pt 0 3pt 16pt;padding:0} li{margin:1pt 0}</style></head><body><h1>Relatório – Torneio de Álgebra Linear (CIN0138)</h1>
-<p><strong>Equipe:</strong> Grupo N — <em>(preencher os nomes dos integrantes)</em><br />
-<strong>Arquivo entregue:</strong> <code>principal.py</code>, com a função <code>principal(observada, mascara)</code></p>
-<h2>1. O problema</h2>
-<p>Recebemos uma matriz com parte das entradas ocultas e precisamos estimar essas
-entradas. O erro é medido só nas posições ocultas pelo NRMSE (raiz do erro
-quadrático médio dividida pelo desvio-padrão dos valores verdadeiros). Um NRMSE
-igual a 1 equivale a chutar a média; quanto menor, melhor.</p>
-<h2>2. Ideia central</h2>
-<p>Em tabelas de dados reais as linhas costumam ser parecidas entre si: cada linha é
-(quase) uma combinação linear de poucas linhas "básicas". Em termos de Álgebra
-Linear, a matriz tem <strong>posto baixo</strong>: o espaço das colunas tem dimensão pequena
-<code>r</code>, e a matriz pode ser escrita como um produto</p>
-<pre><code>X ≈ U Vᵀ,   U com m linhas e r colunas,   V com n linhas e r colunas.
+ul{margin:3pt 0 3pt 16pt;padding:0} li{margin:1pt 0}</style></head><body><h1>Relatório – Projeto de Álgebra Linear (CIN0138)</h1>
+<p><strong>Equipe 9:</strong> Wallyson Rodrigues da Silva, Guilherme Duque e Bruno Antônio</p>
+<h2>Ideia</h2>
+<p>Começamos pelas estratégias do laboratório do site (médias e efeitos de linha e
+coluna). Elas funcionam em algumas matrizes do banco público, mas em outras o
+erro fica perto de 1, igual a chutar a média. Olhando os valores singulares dos
+gabaritos, vimos que quase todas as matrizes têm posto baixo (entre 1 e 6), ou
+seja, podem ser escritas como</p>
+<pre><code>X ≈ U Vᵀ,  com U (m × r) e V (n × r) e r pequeno.
 </code></pre>
-<p>Uma matriz de posto <code>r</code> tem só <code>r(m + n − r)</code> graus de liberdade, bem menos do que
-<code>m·n</code> entradas. Por isso as entradas conhecidas podem ser suficientes para
-determinar <code>U</code> e <code>V</code>, e o produto <code>U Vᵀ</code> devolve as entradas ocultas.</p>
-<p>Confirmamos isso nos gabaritos públicos calculando os valores singulares (SVD):
-8 das 10 matrizes têm de 1 a 6 valores singulares grandes e o resto perto de zero.</p>
-<h2>3. O algoritmo, passo a passo</h2>
-<p><strong>Passo 0 – preparação.</strong> A máscara chega como 0/1 e é convertida para booleana;
-as ocultas chegam como NaN e são trocadas por zero (nunca entram nas contas).
-Normalizamos a matriz: subtraímos a média <code>μ</code> das conhecidas e dividimos pelo
-desvio <code>σ</code>. No fim desfazemos a normalização.</p>
-<p><strong>Passo 1 – modelo simples (efeitos).</strong> Ajustamos <code>x_ij ≈ μ + a_i + b_j</code> por
-mínimos quadrados alternados: com os <code>b_j</code> fixos, o melhor <code>a_i</code> é a média dos
-resíduos da linha <code>i</code>; depois fixamos os <code>a_i</code> e atualizamos os <code>b_j</code>. Uma
-pequena regularização <code>λ</code> no denominador evita exagerar o efeito de linhas com
-poucas entradas conhecidas. É o plano B do algoritmo.</p>
-<p><strong>Passo 2 – posto baixo por mínimos quadrados alternados (ALS).</strong> Queremos <code>U</code>
-e <code>V</code> que minimizem o erro nas entradas conhecidas (conjunto Ω):</p>
-<pre><code>soma em (i,j) ∈ Ω de (x_ij − u_i · v_j)²  +  λ (penalidade em U e V)
-</code></pre>
-<p>Com <code>V</code> fixo, cada linha <code>u_i</code> é a solução de um problema de mínimos quadrados
-com <code>r</code> incógnitas. As equações normais são</p>
-<pre><code>(V_iᵀ V_i + λ c_i I) u_i = V_iᵀ x_i
-</code></pre>
-<p>onde <code>V_i</code> contém só as linhas de <code>V</code> das colunas conhecidas na linha <code>i</code>, <code>x_i</code>
-os valores conhecidos e <code>c_i</code> quantos são. Resolvemos esse sistema <code>r × r</code> para
-cada linha (<code>numpy.linalg.solve</code>), depois trocamos os papéis e resolvemos para
-cada coluna, e repetimos. O ponto de partida vem da SVD da matriz com zeros nas
-ocultas. O termo <code>λ I</code> (regularização <em>ridge</em>) garante que o sistema tenha
-solução única e estável mesmo com poucas entradas conhecidas.</p>
-<p>Ajustamos o posto baixo em três versões da matriz, porque não sabemos de antemão
-qual descreve melhor os dados: (a) centralizada, (b) resíduo depois de tirar os
-efeitos do passo 1, (c) sem centralizar. Centralizar pode aumentar o posto em 1,
-o que faz diferença quando há poucas entradas.</p>
-<p><strong>Passo 3 – escolha do posto e da regularização por validação cruzada.</strong> O posto
-certo muda de matriz para matriz, e errar por 1 pode multiplicar o erro por 100.
-Como não temos o gabarito, simulamos o problema dentro das entradas conhecidas:
-dividimos as conhecidas em <code>K</code> grupos (10 nas matrizes menores, até 5 nas
-maiores); para cada grupo, escondemos esse grupo, ajustamos o modelo com o resto
-e medimos o erro no grupo escondido. Fica o posto <code>r</code> (de 1 a 10) e o <code>λ</code> de
-menor erro. Os grupos são formados por uma fórmula fixa, sem aleatoriedade, então
-o resultado é sempre o mesmo. Os <code>K</code> ajustes são feitos de uma vez só com
-operações em lote do NumPy, o que mantém o tempo baixo.</p>
-<p>Para cada posto percorremos um caminho de regularização da mais forte para a
-mais fraca (<code>λ</code> = 0,3; 0,1; 0,03; 0,01; 0,001; 0,0001), aproveitando a solução
-anterior como ponto de partida.</p>
-<p><strong>Passo 4 – trava contra previsões absurdas.</strong> Com <code>λ</code> muito pequeno o ajuste é
-quase exato, mas uma linha com poucas conhecidas pode gerar um sistema mal
-condicionado e uma previsão absurda. Por isso a previsão com <code>λ</code> menor não pode
-se afastar mais do que 3 erros típicos da previsão anterior (com <code>λ</code> maior, mais
-estável). O erro típico é o medido na validação.</p>
-<p><strong>Passo 5 – mistura e proteção para matrizes sem estrutura.</strong> A estimativa final
-é <code>w₁·(efeitos) + w₂·(posto baixo)</code>, com os pesos calculados por mínimos
-quadrados nas entradas escondidas da validação (pesos entre 0 e 1). Um modelo
-mais complexo só entra se o ganho sobre o mais simples for claro (teste <em>t</em>
-pareado maior que 2). Se nada ganhar da média, devolvemos a média: é o que
-acontece quando a matriz não tem estrutura aproveitável.</p>
-<p><strong>Passo 6 – segurança.</strong> As estimativas são limitadas a um intervalo um pouco
-maior que o dos valores conhecidos, qualquer valor não finito é substituído, os
-valores conhecidos são recolocados e, se ocorrer qualquer erro numérico, o
-código devolve o modelo de efeitos (ou a média). Assim a saída nunca tem NaN,
-infinito ou formato errado.</p>
-<h2>4. Resultados no banco público</h2>
-<p>NRMSE por matriz (avaliador local, mesma fórmula do torneio). As cinco primeiras
-colunas são as estratégias do laboratório do site da disciplina.</p>
+<p>Uma matriz de posto r tem só r(m + n − r) valores livres, então as entradas
+conhecidas podem ser suficientes para achar U e V, e o produto devolve as
+ocultas.</p>
+<h2>Como o código funciona</h2>
+<ol>
+<li><strong>Normalização.</strong> Tiramos a média e dividimos pelo desvio das entradas
+   conhecidas. As ocultas (NaN) viram zero e não entram nas contas.</li>
+<li><strong>Efeitos de linha e coluna.</strong> Modelo x_ij ≈ μ + a_i + b_j, ajustado
+   alternando a média dos resíduos das linhas e das colunas. É o nosso plano B.</li>
+<li><strong>Posto baixo por mínimos quadrados alternados.</strong> Com V fixo, cada linha de
+   U é um problema de mínimos quadrados com r incógnitas, resolvido pelas
+   equações normais (VᵀV + λI) u = Vᵀx usando só as colunas conhecidas daquela
+   linha. Depois fixamos U e resolvemos V, e repetimos. O ponto de partida vem
+   da SVD da matriz com zeros nas ocultas. O λ evita que o sistema fique
+   instável quando a linha tem poucas entradas conhecidas.</li>
+<li><strong>Escolha do posto.</strong> O posto certo muda de matriz para matriz e errar por 1
+   já estraga o resultado (na matriz 9, posto 4 dá erro 0,004 e posto 5 dá
+   0,43). Como não temos o gabarito, escondemos uma parte das entradas
+   conhecidas, ajustamos com o resto e medimos o erro nas que foram escondidas
+   (validação cruzada). Testamos postos de 1 a 12 e vários valores de λ e
+   ficamos com o de menor erro.</li>
+<li><strong>Cuidados.</strong> Com λ muito pequeno algumas previsões saíam absurdas, então
+   limitamos o quanto a previsão pode se afastar da versão com λ maior. No fim
+   misturamos o posto baixo com o modelo de efeitos, e se nenhum dos dois ganhar
+   da média na validação devolvemos a média (caso de matriz sem estrutura).
+   Também garantimos que a saída não tenha NaN nem infinito.</li>
+</ol>
+<h2>Resultados (banco público, NRMSE)</h2>
 <table>
 <thead>
 <tr>
-<th>#</th>
-<th>tamanho</th>
-<th>ocultas</th>
-<th>global</th>
-<th>linha</th>
-<th>coluna</th>
-<th>efeitos</th>
-<th>vizinhas</th>
-<th><strong>nossa</strong></th>
+<th>Matriz</th>
+<th>Tamanho</th>
+<th>Efeitos</th>
+<th>Vizinhas</th>
+<th>Nosso código</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>01</td>
+<td>1</td>
 <td>8x8</td>
-<td>16%</td>
-<td>1,234</td>
-<td>1,171</td>
-<td>1,368</td>
 <td>1,264</td>
 <td>1,310</td>
-<td><strong>1,234</strong></td>
+<td>1,234</td>
 </tr>
 <tr>
-<td>02</td>
+<td>2</td>
 <td>9x6</td>
-<td>13%</td>
-<td>1,051</td>
-<td>0,031</td>
-<td>1,162</td>
 <td>0,033</td>
 <td>0,043</td>
-<td><strong>0,034</strong></td>
+<td>0,034</td>
 </tr>
 <tr>
-<td>03</td>
+<td>3</td>
 <td>6x9</td>
-<td>26%</td>
-<td>1,099</td>
-<td>1,269</td>
-<td>0,074</td>
 <td>0,077</td>
 <td>0,371</td>
-<td><strong>0,076</strong></td>
+<td>0,076</td>
 </tr>
 <tr>
-<td>04</td>
+<td>4</td>
 <td>14x5</td>
-<td>13%</td>
-<td>1,039</td>
-<td>0,580</td>
-<td>0,873</td>
 <td>0,303</td>
 <td>0,231</td>
-<td><strong>0,041</strong></td>
+<td>0,041</td>
 </tr>
 <tr>
-<td>05</td>
+<td>5</td>
 <td>14x7</td>
-<td>17%</td>
-<td>1,001</td>
-<td>0,800</td>
-<td>0,900</td>
 <td>0,453</td>
 <td>0,268</td>
-<td><strong>0,162</strong></td>
+<td>0,162</td>
 </tr>
 <tr>
-<td>06</td>
+<td>6</td>
 <td>16x16</td>
-<td>27%</td>
-<td>1,031</td>
-<td>1,086</td>
-<td>1,053</td>
 <td>1,115</td>
 <td>0,906</td>
-<td><strong>0,042</strong></td>
+<td>0,042</td>
 </tr>
 <tr>
-<td>07</td>
+<td>7</td>
 <td>18x22</td>
-<td>26%</td>
-<td>1,001</td>
-<td>1,042</td>
-<td>1,027</td>
 <td>1,054</td>
 <td>0,752</td>
-<td><strong>0,088</strong></td>
+<td>0,088</td>
 </tr>
 <tr>
-<td>08</td>
+<td>8</td>
 <td>17x17</td>
-<td>34%</td>
-<td>1,003</td>
-<td>1,030</td>
-<td>1,015</td>
 <td>1,066</td>
 <td>1,208</td>
-<td><strong>1,003</strong></td>
+<td>1,003</td>
 </tr>
 <tr>
-<td>09</td>
+<td>9</td>
 <td>24x19</td>
-<td>35%</td>
-<td>1,011</td>
-<td>0,723</td>
-<td>0,859</td>
 <td>0,248</td>
 <td>0,266</td>
-<td><strong>0,001</strong></td>
+<td>0,001</td>
 </tr>
 <tr>
 <td>10</td>
 <td>28x31</td>
-<td>41%</td>
-<td>1,001</td>
-<td>0,829</td>
-<td>0,730</td>
 <td>0,327</td>
 <td>0,335</td>
-<td><strong>0,001</strong></td>
+<td>0,001</td>
 </tr>
 <tr>
-<td><strong>média</strong></td>
+<td><strong>Média</strong></td>
 <td></td>
-<td></td>
-<td>1,047</td>
-<td>0,856</td>
-<td>0,906</td>
 <td>0,594</td>
 <td>0,569</td>
 <td><strong>0,268</strong></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Interpretação.</strong> As matrizes 4, 6, 7, 9 e 10 têm posto baixo (2, 3, 4, 4 e 6):
-a validação encontra o posto e o erro cai muito; nas 9 e 10 quase não há ruído e
-a reconstrução é praticamente exata. As matrizes 2 e 3 têm linhas ou colunas
-quase constantes (posto 1) e todos os bons métodos empatam. Na 5 (14x7, posto 3
-com ruído) há poucas entradas para o número de parâmetros e o erro é maior. As
-matrizes 1 e 8 não têm estrutura de posto baixo (na 8 os valores singulares caem
-devagar, como em uma matriz aleatória): nenhuma estratégia fica abaixo de 1, e o
-algoritmo corretamente recua para a média em vez de piorar.</p>
-<p>Para não ajustar o código só a essas 10 matrizes, testamos também em 304
-matrizes geradas por nós (5x5 até 40x40, 10% a 50% ocultas, vários tipos de
-estrutura): NRMSE médio de <strong>0,306</strong>, contra 0,642 da melhor estratégia simples.
-O pior tempo em matrizes 40x40 foi de cerca de 0,3 s (limite: 2 s).</p>
-<h2>5. Limitações</h2>
+<p>"Efeitos" e "Vizinhas" são as duas melhores estratégias do laboratório. Nas
+matrizes de posto baixo (4, 6, 7, 9 e 10) o erro cai bastante, e nas 9 e 10 a
+reconstrução é quase exata. As matrizes 1 e 8 não têm estrutura: nenhuma
+estratégia fica abaixo de 1 e o código devolve a média. Para não depender só
+dessas 10 matrizes, testamos também em matrizes geradas por nós, de até 40x40;
+o pior tempo foi de cerca de 0,4 s por matriz.</p>
+<h2>Limitações</h2>
+<p>Quando a matriz não tem estrutura, ou quando uma linha ou coluna está toda
+oculta, não há informação para recuperar e o resultado fica perto da média. Em
+matrizes muito pequenas a validação tem poucas entradas e pode escolher um posto
+que não é o melhor.</p>
+<h2>Referências</h2>
 <ul>
-<li>Matriz sem estrutura: não há o que recuperar; o resultado é a média (NRMSE ≈ 1).</li>
-<li>Linha ou coluna totalmente oculta: nada na matriz informa sobre ela; usamos o
-  efeito da outra dimensão.</li>
-<li>Matrizes muito pequenas: com poucas entradas a validação cruzada é ruidosa e o
-  posto escolhido pode não ser o ideal.</li>
-</ul>
-<h2>6. Referências</h2>
-<ul>
-<li>G. Strang, <em>Linear Algebra</em> (MIT 18.06), aulas 15–16 (projeções e mínimos
-  quadrados) e 29 (decomposição em valores singulares).</li>
-<li>Laboratório "Matriz oculta" e materiais do site da disciplina CIN0138.</li>
-<li>Google Developers, <em>Collaborative Filtering / Matrix Factorization</em>.</li>
-<li>R. Mazumder, T. Hastie, R. Tibshirani, "Spectral Regularization Algorithms for
-  Learning Large Incomplete Matrices", JMLR, 2010.</li>
-<li>Y. Zhou et al., "Large-scale Parallel Collaborative Filtering for the Netflix
-  Prize" (ALS com regularização ponderada), 2008.</li>
-<li>Documentação do NumPy: <code>numpy.linalg.svd</code>, <code>numpy.linalg.solve</code>.</li>
+<li>G. Strang, MIT 18.06, aulas 16 (mínimos quadrados) e 29 (SVD).</li>
+<li>Laboratório "Matriz oculta" e links do site da disciplina (fatoração de matrizes).</li>
+<li>Documentação do NumPy (<code>numpy.linalg.svd</code> e <code>numpy.linalg.solve</code>).</li>
 </ul></body></html>
