@@ -1,88 +1,57 @@
-"""
-Torneio de Álgebra Linear (CIN0138) - reconstrução de matrizes com entradas ocultas.
-
-Ideia geral do algoritmo:
-  1. Normalizamos a matriz (tiramos a média e dividimos pelo desvio das conhecidas).
-  2. Modelo simples: média global + efeito de cada linha + efeito de cada coluna
-     (mínimos quadrados alternados com uma pequena regularização).
-  3. Modelo principal: aproximação de posto baixo  X ~ U V^T, com U (m x r) e
-     V (n x r), ajustada só nas entradas conhecidas por mínimos quadrados
-     alternados (ALS): fixando V, cada linha de U é um problema de mínimos
-     quadrados pequeno (r incógnitas); depois fixamos U e resolvemos V.
-  4. O posto r e a força da regularização NÃO são fixos: escondemos de propósito
-     uma parte das entradas conhecidas (validação cruzada), ajustamos o modelo
-     com o resto e medimos o erro nas que foram escondidas. Fica a configuração
-     que erra menos.
-  5. Uma "trava" impede que o modelo menos regularizado se afaste demais do
-     modelo mais estável (isso evita previsões absurdas em linhas/colunas com
-     poucas entradas conhecidas).
-  6. No fim, misturamos o modelo simples e o de posto baixo com pesos calculados
-     por mínimos quadrados nas entradas escondidas. Se nenhum modelo mostrar
-     ganho real sobre a média, ficamos com a média (matriz sem estrutura).
-"""
 import numpy as np
 
 
 def principal(observada, mascara):
-    # ------------------------------------------------------------------
-    # 0. Leitura dos dados (a máscara chega como 0/1; ocultas chegam como NaN)
-    # ------------------------------------------------------------------
     O = np.array(observada, dtype=float)
-    M = np.array(mascara) != 0
+    M = np.array(mascara) != 0          # a mascara vem como 0/1
     if O.ndim != 2 or M.shape != O.shape:
         return np.where(np.isfinite(O), O, 0.0)
     m, n = O.shape
-    M = M & np.isfinite(O)                 # só confiamos em valores finitos
-    nk = int(M.sum())                      # número de entradas conhecidas
+    M = M & np.isfinite(O)
+    nk = int(M.sum())
     if nk == 0:
         return np.zeros((m, n))
-    X = np.where(M, O, 0.0)                # zeros no lugar dos NaN
+    X = np.where(M, O, 0.0)             # tira os NaN das ocultas
     if nk == m * n:
         return X
-    mu = X.sum() / nk                      # média das conhecidas
+
+    # normaliza usando so as conhecidas
+    mu = X.sum() / nk
     desvio = np.sqrt((np.where(M, X - mu, 0.0) ** 2).sum() / nk)
     if not (desvio > 1e-300) or not np.isfinite(desvio):
-        return np.where(M, X, mu)          # todas as conhecidas são iguais
-
-    # Matriz normalizada: média 0 e desvio 1 nas conhecidas (0 nas ocultas).
+        return np.where(M, X, mu)
     Z = np.where(M, (X - mu) / desvio, 0.0)
     Mf = M.astype(float)
-    desloc = mu / desvio                   # usado para trabalhar sem centralizar
+    desloc = mu / desvio
     zmin = Z[M].min()
     zmax = Z[M].max()
     folga = 0.25 * (zmax - zmin)
-    zmin = zmin - folga                    # limites razoáveis para as estimativas
+    zmin = zmin - folga
     zmax = zmax + folga
 
-    # ------------------------------------------------------------------
-    # Funções de apoio. Todas trabalham com "lotes": T e W têm formato
-    # (B, m, n), ou seja, B problemas resolvidos de uma vez só (um por dobra
-    # da validação cruzada). W vale 1 onde a entrada pode ser usada no ajuste.
-    # ------------------------------------------------------------------
+    # As funcoes abaixo recebem T e W com formato (B, m, n): sao B matrizes
+    # resolvidas ao mesmo tempo (uma para cada dobra da validacao).
+    # W = 1 nas entradas que podem ser usadas no ajuste.
+
     def efeitos(T, W, lam, rodadas):
-        # Modelo t_ij ~ a_i + b_j. Fixando b, o melhor a_i é a média dos
-        # resíduos da linha i (e vice-versa). lam "encolhe" efeitos de linhas
-        # ou colunas com poucas entradas conhecidas.
+        # t_ij ~ a_i + b_j
         cont_l = W.sum(axis=2, keepdims=True)
         cont_c = W.sum(axis=1, keepdims=True)
         a = np.zeros(cont_l.shape)
         b = np.zeros(cont_c.shape)
-        for rodada in range(rodadas):
+        for k in range(rodadas):
             a = (W * (T - b)).sum(axis=2, keepdims=True) / (cont_l + lam + 1e-12)
             b = (W * (T - a)).sum(axis=1, keepdims=True) / (cont_c + lam + 1e-12)
         return a + b
 
     def iniciar(WT, r):
-        # Ponto de partida do ALS: SVD da matriz com zeros nas ocultas.
-        # Guardamos as r primeiras direções (vetores singulares à direita).
+        # chute inicial de V pela SVD da matriz com zeros nas ocultas
         Us, sv, Vt = np.linalg.svd(WT, full_matrices=False)
         return np.swapaxes(Vt[:, :r, :], 1, 2) * np.sqrt(sv[:, None, :r])
 
     def als(WT, W, V, lam, rodadas):
-        # Mínimos quadrados alternados para  W * (T - U V^T)  com penalidade lam.
-        # Para cada linha i resolvemos as equações normais
-        #     (V_i^T V_i + lam * c_i * I) u_i = V_i^T t_i
-        # onde V_i só tem as colunas conhecidas na linha i e c_i é quantas são.
+        # minimos quadrados alternados: T ~ U V^T so nas entradas com W = 1
+        # linha i:  (Vi^T Vi + lam*ci*I) u_i = Vi^T t_i
         B = WT.shape[0]
         r = V.shape[2]
         ident = np.eye(r)[None, None, :, :]
@@ -91,7 +60,7 @@ def principal(observada, mascara):
         Wt = np.swapaxes(W, 1, 2)
         WTt = np.swapaxes(WT, 1, 2)
         U = np.zeros((B, m, r))
-        for rodada in range(rodadas):
+        for k in range(rodadas):
             VV = (V[:, :, :, None] * V[:, :, None, :]).reshape(B, n, r * r)
             A = (W @ VV).reshape(B, m, r, r) + pen_l
             U = np.linalg.solve(A, (WT @ V)[:, :, :, None])[:, :, :, 0]
@@ -100,10 +69,8 @@ def principal(observada, mascara):
             V = np.linalg.solve(A, (WTt @ U)[:, :, :, None])[:, :, :, 0]
         return U, V
 
+    # modo 0: matriz centralizada, modo 1: residuo dos efeitos, modo 2: sem centralizar
     def alvo(modo, Zx, Ex, Wx):
-        # O posto baixo é ajustado em três versões da matriz:
-        #   modo 0: matriz centralizada;  modo 1: resíduo depois de tirar os
-        #   efeitos de linha/coluna;      modo 2: matriz sem centralizar.
         if modo == 0:
             return Zx * Wx
         if modo == 1:
@@ -111,7 +78,6 @@ def principal(observada, mascara):
         return (Zx + desloc) * Wx
 
     def base(modo, Ex):
-        # O que precisa ser somado de volta à previsão U V^T em cada modo.
         if modo == 0:
             return 0.0 * Ex
         if modo == 1:
@@ -119,40 +85,32 @@ def principal(observada, mascara):
         return 0.0 * Ex - desloc
 
     def completar():
-        # --------------------------------------------------------------
-        # 1. Dobras da validação cruzada: cada entrada conhecida é escondida
-        #    em exatamente uma dobra. O sorteio é feito por uma fórmula fixa
-        #    (sem números aleatórios), então o resultado é sempre o mesmo.
-        # --------------------------------------------------------------
-        # (matrizes maiores usam menos dobras para caber com folga no tempo)
+        # dobras da validacao (sem sorteio, sempre iguais)
         K = 10 if nk <= 500 else (8 if nk <= 800 else (6 if nk <= 1100 else 5))
         I = np.arange(m)[:, None] * np.ones((1, n))
         J = np.ones((m, 1)) * np.arange(n)[None, :]
         cont_l = M.sum(axis=1, keepdims=True)
         cont_c = M.sum(axis=0, keepdims=True)
-        livre = M & (cont_l > 1) & (cont_c > 1)       # única da linha/coluna nunca é escondida
+        livre = M & (cont_l > 1) & (cont_c > 1)
         h = np.sin(I * 12.9898 + J * 78.233 + 1.0) * 43758.5453
-        h = h - np.floor(h)                           # número "embaralhado" entre 0 e 1
-        chave = np.where(livre, I + h, 1e9)           # ordena linha por linha
+        h = h - np.floor(h)
+        chave = np.where(livre, I + h, 1e9)
         ordem = np.argsort(np.argsort(chave.ravel(), kind="stable"), kind="stable")
         dobra = ordem.reshape(m, n) % K
         H = livre[None, :, :] & (dobra[None, :, :] == np.arange(K)[:, None, None])
-        Hf = H.astype(float)                          # 1 nas entradas escondidas da dobra
-        W = Mf[None, :, :] * (1.0 - Hf)               # 1 nas entradas usadas no ajuste
+        Hf = H.astype(float)              # escondidas em cada dobra
+        W = Mf[None, :, :] * (1.0 - Hf)   # usadas no ajuste
         nh = Hf.sum()
         Zb = Z[None, :, :] * np.ones((K, 1, 1))
 
         Ef = efeitos(Z[None, :, :], Mf[None, :, :], 1.0, 30)[0]
         if nh < 4:
-            return Ef                                 # dados demais faltando para validar
+            return Ef
 
         def erro(P):
-            # erro quadrático médio nas entradas escondidas (todas as dobras)
             return ((Hf * (P - Zb)) ** 2).sum() / nh
 
-        # --------------------------------------------------------------
-        # 2. Modelo de efeitos: escolhe a regularização pela validação
-        # --------------------------------------------------------------
+        # efeitos de linha e coluna
         melhor_e = -1.0
         lam_ef = 1.0
         Pef = np.zeros((K, m, n))
@@ -165,14 +123,10 @@ def principal(observada, mascara):
                 Pef = P
         Ef = efeitos(Z[None, :, :], Mf[None, :, :], lam_ef, 30)[0]
 
-        # --------------------------------------------------------------
-        # 3. Posto baixo: para cada posto r percorremos um "caminho" de
-        #    regularização, da mais forte para a mais fraca, aproveitando a
-        #    solução anterior como ponto de partida.
-        # --------------------------------------------------------------
-        modos = (0, 1, 2) if nk <= 700 else (1, 2)    # matriz grande: 2 versões bastam
+        # posto baixo: testa os postos e, em cada um, vai diminuindo o lambda
+        modos = (0, 1, 2) if nk <= 700 else (1, 2)
         nm = len(modos)
-        caminho = (0.3, 0.1, 0.03, 0.01, 0.001, 0.0001)
+        lams = (0.3, 0.1, 0.03, 0.01, 0.001, 0.0001)
         WTm = np.concatenate([alvo(q, Zb, Pef, W) for q in modos], axis=0)
         Wm = np.concatenate([W for q in modos], axis=0)
         basem = np.concatenate([base(q, Pef) for q in modos], axis=0)
@@ -187,23 +141,20 @@ def principal(observada, mascara):
         melhor_taus = []
         sem_melhora = 0
         for r in range(1, r_max + 1):
-            # r(m+n-r) é o número de parâmetros livres de uma matriz de posto r:
-            # não faz sentido passar do número de entradas disponíveis.
-            if r * (m + n - r) > 0.9 * n_treino:
+            if r * (m + n - r) > 0.9 * n_treino:   # mais parametros do que dados
                 break
             V = iniciar(WTm, r)
             P_ant = basem
             taus = [[] for q in modos]
             melhorou = False
-            for nivel in range(len(caminho)):
-                U, V = als(WTm, Wm, V, caminho[nivel], 12 if nivel == 0 else 5)
+            for nivel in range(len(lams)):
+                U, V = als(WTm, Wm, V, lams[nivel], 12 if nivel == 0 else 5)
                 P = np.clip(basem + U @ np.swapaxes(V, 1, 2), zmin, zmax)
                 partes = []
                 for q in range(nm):
                     Pq = P[q * K:(q + 1) * K]
                     if nivel > 0:
-                        # trava: no máximo 3 "erros típicos" de distância do
-                        # modelo anterior (mais regularizado e mais estável)
+                        # nao deixa fugir muito da previsao com lambda maior
                         t = 3.0 * taus[q][nivel - 1]
                         Pa = P_ant[q * K:(q + 1) * K]
                         Pq = Pa + np.clip(Pq - Pa, -t, t)
@@ -223,32 +174,25 @@ def principal(observada, mascara):
             if melhorou:
                 sem_melhora = 0
             else:
-                sem_melhora += 1
+                sem_melhora = sem_melhora + 1
                 if sem_melhora >= 3:
-                    break                             # postos maiores só pioram
+                    break
 
-        # --------------------------------------------------------------
-        # 4. Reajuste do melhor posto baixo usando TODAS as conhecidas
-        # --------------------------------------------------------------
+        # refaz o melhor modelo com todas as conhecidas
         Lr = Ef
         if achou:
             WT = alvo(melhor_modo, Z[None, :, :], Ef[None, :, :], Mf[None, :, :])
             soma = base(melhor_modo, Ef[None, :, :])
             V = iniciar(WT, melhor_r)
             for nivel in range(melhor_nivel + 1):
-                U, V = als(WT, Mf[None, :, :], V, caminho[nivel], 48 if nivel == 0 else 20)
+                U, V = als(WT, Mf[None, :, :], V, lams[nivel], 48 if nivel == 0 else 20)
                 P = np.clip(soma + U @ np.swapaxes(V, 1, 2), zmin, zmax)[0]
                 if nivel > 0:
                     t = 3.0 * melhor_taus[nivel - 1]
                     P = Lr + np.clip(P - Lr, -t, t)
                 Lr = P
 
-        # --------------------------------------------------------------
-        # 5. Mistura final. Os pesos saem de um problema de mínimos quadrados
-        #    nas entradas escondidas: y ~ w1 * efeitos + w2 * posto_baixo.
-        #    Um modelo mais complicado só entra se o ganho for claro
-        #    (teste t pareado > 2); senão ficamos com o mais simples.
-        # --------------------------------------------------------------
+        # mistura: y ~ w1*efeitos + w2*posto_baixo (pesos por minimos quadrados)
         sel = H.ravel()
         y = Zb.ravel()[sel]
         N = y.shape[0]
@@ -260,15 +204,16 @@ def principal(observada, mascara):
         def pesos(colunas):
             A = np.stack(colunas, axis=1)
             G = A.T @ A + 1e-9 * np.eye(len(colunas))
-            w = np.linalg.solve(G, A.T @ y)           # equações normais
+            w = np.linalg.solve(G, A.T @ y)
             if (w < 0).any() or w.sum() > 1.0:
                 w = np.clip(w, 0.0, 1.0)
                 if w.sum() > 1.0:
                     w = w / w.sum()
             return w, (A @ w - y) ** 2
 
+        # so troca a media por um modelo se o ganho for claro (t > 2)
         pe = Pef.ravel()[sel]
-        e_atual = y ** 2                              # prever a média (zero)
+        e_atual = y ** 2
         est = np.zeros((m, n))
         w1, e1 = pesos([pe])
         if ganho(e_atual, e1) > 2.0:
@@ -288,10 +233,7 @@ def principal(observada, mascara):
                 est = est_novo
         return est
 
-    # ------------------------------------------------------------------
-    # Execução com rede de segurança: qualquer problema numérico cai para
-    # o modelo de efeitos e, em último caso, para a média global.
-    # ------------------------------------------------------------------
+    # se der qualquer problema numerico, cai para o modelo simples
     try:
         est = completar()
     except Exception:
@@ -299,7 +241,7 @@ def principal(observada, mascara):
             est = efeitos(Z[None, :, :], Mf[None, :, :], 1.0, 30)[0]
         except Exception:
             est = np.zeros((m, n))
-    est = np.where(np.isfinite(est), est, 0.0)        # nada de NaN/Inf
-    est = mu + desvio * np.clip(est, zmin, zmax)      # volta para a escala original
+    est = np.where(np.isfinite(est), est, 0.0)
+    est = mu + desvio * np.clip(est, zmin, zmax)
     est = np.where(np.isfinite(est), est, mu)
-    return np.where(M, X, est)                        # conhecidas ficam como estavam
+    return np.where(M, X, est)
