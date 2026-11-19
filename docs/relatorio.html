@@ -1,0 +1,150 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Relatório</title><style>body{font-family:Georgia,serif;font-size:10.5pt;line-height:1.38;color:#111;max-width:175mm;margin:auto}
+h1{font-size:17pt;margin:0 0 6pt} h2{font-size:12.5pt;margin:12pt 0 4pt;border-bottom:1px solid #999;padding-bottom:2pt}
+p{margin:4pt 0;text-align:justify} pre{background:#f3f3f3;padding:5pt 8pt;font-size:9.5pt;margin:4pt 0}
+code{font-family:Consolas,monospace;font-size:9.5pt}
+table{border-collapse:collapse;margin:6pt auto;font-size:9pt} td,th{border:1px solid #888;padding:2pt 6pt;text-align:center}
+ul{margin:3pt 0 3pt 16pt;padding:0} li{margin:1pt 0}</style></head><body><h1>Relatório – Projeto de Álgebra Linear (CIN0138)</h1>
+<p><strong>Equipe 9:</strong> Wallyson Rodrigues da Silva, Guilherme Duque e Bruno Antônio</p>
+<h2>Ideia</h2>
+<p>Começamos pelas estratégias do laboratório do site (médias e efeitos de linha e
+coluna). Elas funcionam em algumas matrizes do banco público, mas em outras o
+erro fica perto de 1, igual a chutar a média. Olhando os valores singulares dos
+gabaritos, vimos que quase todas as matrizes têm posto baixo (entre 1 e 6), ou
+seja, podem ser escritas como</p>
+<pre><code>X ≈ U Vᵀ,  com U (m × r) e V (n × r) e r pequeno.
+</code></pre>
+<p>Uma matriz de posto r tem só r(m + n − r) valores livres, então as entradas
+conhecidas podem ser suficientes para achar U e V, e o produto devolve as
+ocultas.</p>
+<h2>Como o código funciona</h2>
+<ol>
+<li><strong>Normalização.</strong> Tiramos a média e dividimos pelo desvio das entradas
+   conhecidas. As ocultas (NaN) viram zero e não entram nas contas.</li>
+<li><strong>Efeitos de linha e coluna.</strong> Modelo x_ij ≈ μ + a_i + b_j, ajustado
+   alternando a média dos resíduos das linhas e das colunas. É o nosso plano B.</li>
+<li><strong>Posto baixo por mínimos quadrados alternados.</strong> Com V fixo, cada linha de
+   U é um problema de mínimos quadrados com r incógnitas, resolvido pelas
+   equações normais (VᵀV + λI) u = Vᵀx usando só as colunas conhecidas daquela
+   linha. Depois fixamos U e resolvemos V, e repetimos. O ponto de partida vem
+   da SVD da matriz com zeros nas ocultas. O λ evita que o sistema fique
+   instável quando a linha tem poucas entradas conhecidas.</li>
+<li><strong>Escolha do posto.</strong> O posto certo muda de matriz para matriz e errar por 1
+   já estraga o resultado (na matriz 9, posto 4 dá erro 0,004 e posto 5 dá
+   0,43). Como não temos o gabarito, escondemos uma parte das entradas
+   conhecidas, ajustamos com o resto e medimos o erro nas que foram escondidas
+   (validação cruzada). Testamos postos de 1 a 12 e vários valores de λ e
+   ficamos com o de menor erro.</li>
+<li><strong>Cuidados.</strong> Com λ muito pequeno algumas previsões saíam absurdas, então
+   limitamos o quanto a previsão pode se afastar da versão com λ maior. No fim
+   misturamos o posto baixo com o modelo de efeitos, e se nenhum dos dois ganhar
+   da média na validação devolvemos a média (caso de matriz sem estrutura).
+   Também garantimos que a saída não tenha NaN nem infinito.</li>
+</ol>
+<h2>Resultados (banco público, NRMSE)</h2>
+<table>
+<thead>
+<tr>
+<th>Matriz</th>
+<th>Tamanho</th>
+<th>Efeitos</th>
+<th>Vizinhas</th>
+<th>Nosso código</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>8x8</td>
+<td>1,264</td>
+<td>1,310</td>
+<td>1,234</td>
+</tr>
+<tr>
+<td>2</td>
+<td>9x6</td>
+<td>0,033</td>
+<td>0,043</td>
+<td>0,034</td>
+</tr>
+<tr>
+<td>3</td>
+<td>6x9</td>
+<td>0,077</td>
+<td>0,371</td>
+<td>0,076</td>
+</tr>
+<tr>
+<td>4</td>
+<td>14x5</td>
+<td>0,303</td>
+<td>0,231</td>
+<td>0,041</td>
+</tr>
+<tr>
+<td>5</td>
+<td>14x7</td>
+<td>0,453</td>
+<td>0,268</td>
+<td>0,162</td>
+</tr>
+<tr>
+<td>6</td>
+<td>16x16</td>
+<td>1,115</td>
+<td>0,906</td>
+<td>0,042</td>
+</tr>
+<tr>
+<td>7</td>
+<td>18x22</td>
+<td>1,054</td>
+<td>0,752</td>
+<td>0,088</td>
+</tr>
+<tr>
+<td>8</td>
+<td>17x17</td>
+<td>1,066</td>
+<td>1,208</td>
+<td>1,003</td>
+</tr>
+<tr>
+<td>9</td>
+<td>24x19</td>
+<td>0,248</td>
+<td>0,266</td>
+<td>0,001</td>
+</tr>
+<tr>
+<td>10</td>
+<td>28x31</td>
+<td>0,327</td>
+<td>0,335</td>
+<td>0,001</td>
+</tr>
+<tr>
+<td><strong>Média</strong></td>
+<td></td>
+<td>0,594</td>
+<td>0,569</td>
+<td><strong>0,268</strong></td>
+</tr>
+</tbody>
+</table>
+<p>"Efeitos" e "Vizinhas" são as duas melhores estratégias do laboratório. Nas
+matrizes de posto baixo (4, 6, 7, 9 e 10) o erro cai bastante, e nas 9 e 10 a
+reconstrução é quase exata. As matrizes 1 e 8 não têm estrutura: nenhuma
+estratégia fica abaixo de 1 e o código devolve a média. Para não depender só
+dessas 10 matrizes, testamos também em matrizes geradas por nós, de até 40x40;
+o pior tempo foi de cerca de 0,4 s por matriz.</p>
+<h2>Limitações</h2>
+<p>Quando a matriz não tem estrutura, ou quando uma linha ou coluna está toda
+oculta, não há informação para recuperar e o resultado fica perto da média. Em
+matrizes muito pequenas a validação tem poucas entradas e pode escolher um posto
+que não é o melhor.</p>
+<h2>Referências</h2>
+<ul>
+<li>G. Strang, MIT 18.06, aulas 16 (mínimos quadrados) e 29 (SVD).</li>
+<li>Laboratório "Matriz oculta" e links do site da disciplina (fatoração de matrizes).</li>
+<li>Documentação do NumPy (<code>numpy.linalg.svd</code> e <code>numpy.linalg.solve</code>).</li>
+</ul></body></html>

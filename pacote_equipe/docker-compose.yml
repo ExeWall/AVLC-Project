@@ -1,0 +1,16 @@
+services:
+  avaliador-app:
+    image: naxron/avlc_avaliador:latest 
+    container_name: avlc_avaliador
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./banco_publico:/app/banco_publico
+      - ./historico_local_tentativas:/app/historico_local_tentativas
+      - ./competicao.db:/app/competicao.db
+    environment:
+      - PYTHONUNBUFFERED=1
+    shm_size: '2gb'
+    pids_limit: 4096
+    mem_limit: 3g
